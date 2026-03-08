@@ -3,22 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Circle — конвертер кружков</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;600;700&family=DM+Mono&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.6/ffmpeg.min.js"></script>
+<title>Circle.AI — конвертер кружков</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #04060a;
   --surface: #0a0e16;
-  --border: rgba(255,255,255,0.08);
+  --surface2: #0f1520;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
   --cyan: #00e8d8;
+  --cyan-dim: rgba(0,232,216,0.15);
   --blue: #3b82f6;
   --gold: #f0b429;
-  --muted: rgba(255,255,255,0.4);
+  --muted: rgba(255,255,255,0.38);
+  --muted2: rgba(255,255,255,0.55);
   --faint: rgba(255,255,255,0.03);
+  --red: #ef4444;
 }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; }
+
 body {
   background: var(--bg);
   color: #fff;
@@ -27,340 +33,508 @@ body {
   overflow-x: hidden;
 }
 
-/* BG GRID */
+/* GRID BG */
 body::before {
   content: '';
   position: fixed; inset: 0;
   background-image:
-    linear-gradient(rgba(0,232,216,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,232,216,0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
+    linear-gradient(rgba(0,232,216,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,232,216,0.025) 1px, transparent 1px);
+  background-size: 64px 64px;
   pointer-events: none; z-index: 0;
 }
 
-/* GLOW ORBS */
+/* NOISE */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0; opacity: 0.4;
+}
+
+/* ORBS */
 .orb {
   position: fixed; border-radius: 50%;
-  filter: blur(100px); pointer-events: none; z-index: 0;
+  filter: blur(120px); pointer-events: none; z-index: 0;
+  transition: all 4s ease;
 }
-.orb1 { width: 500px; height: 500px; background: rgba(0,232,216,0.06); top: -100px; left: -100px; }
-.orb2 { width: 400px; height: 400px; background: rgba(59,130,246,0.06); bottom: -100px; right: -100px; }
+.orb1 { width: 600px; height: 600px; background: radial-gradient(circle, rgba(0,232,216,0.07), transparent 70%); top: -150px; left: -150px; }
+.orb2 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(59,130,246,0.07), transparent 70%); bottom: -100px; right: -100px; }
+.orb3 { width: 300px; height: 300px; background: radial-gradient(circle, rgba(240,180,41,0.04), transparent 70%); top: 50%; left: 50%; transform: translate(-50%,-50%); }
 
 /* NAV */
 nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 40px;
-  background: rgba(4,6,10,0.8);
-  backdrop-filter: blur(20px);
+  padding: 0 40px; height: 64px;
+  background: rgba(4,6,10,0.75);
+  backdrop-filter: blur(24px) saturate(1.5);
   border-bottom: 1px solid var(--border);
 }
 .nav-logo {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 22px; letter-spacing: 3px; color: var(--cyan);
+  font-size: 20px; letter-spacing: 4px;
 }
-.nav-logo span { color: #fff; }
-.nav-badge {
+.nav-logo .accent { color: var(--cyan); }
+.nav-tag {
   font-family: 'DM Mono', monospace;
-  font-size: 11px; color: var(--muted);
-  letter-spacing: 2px; text-transform: uppercase;
+  font-size: 10px; color: var(--muted);
+  letter-spacing: 2.5px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
 }
+.nav-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+  animation: blink 2.5s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
 
 /* HERO */
 .hero {
   position: relative; z-index: 1;
-  padding: 140px 40px 80px;
+  padding: 130px 40px 60px;
   text-align: center;
-  max-width: 800px; margin: 0 auto;
+  max-width: 860px; margin: 0 auto;
 }
-.hero-badge {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: var(--faint); border: 1px solid var(--border);
-  border-radius: 100px; padding: 6px 16px;
-  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--cyan);
-  margin-bottom: 28px; letter-spacing: 1px;
+
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: rgba(0,232,216,0.06);
+  border: 1px solid rgba(0,232,216,0.2);
+  border-radius: 100px; padding: 7px 18px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: var(--cyan);
+  margin-bottom: 32px; letter-spacing: 1.5px;
+  animation: fadeUp 0.6s ease both;
 }
-.hero-badge::before {
-  content: ''; width: 6px; height: 6px;
-  background: var(--cyan); border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
+.hero-eyebrow-icon { font-size: 13px; }
 
 h1 {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(56px, 10vw, 110px);
-  line-height: .9; letter-spacing: 4px; margin-bottom: 20px;
+  font-size: clamp(64px, 12vw, 130px);
+  line-height: 0.88; letter-spacing: 5px;
+  margin-bottom: 24px;
+  animation: fadeUp 0.6s 0.1s ease both;
 }
-h1 .line1 { color: #fff; display: block; }
-h1 .line2 {
+h1 .w1 { display: block; color: #fff; }
+h1 .w2 {
   display: block;
-  background: linear-gradient(90deg, var(--cyan) 0%, var(--blue) 60%);
+  background: linear-gradient(100deg, var(--cyan) 0%, #60a5fa 50%, var(--cyan) 100%);
+  background-size: 200% auto;
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  animation: shimmer 4s linear infinite;
 }
+@keyframes shimmer { to { background-position: 200% center; } }
+
 .hero-sub {
-  font-size: 17px; color: var(--muted);
-  max-width: 480px; margin: 0 auto 60px;
-  line-height: 1.65; font-weight: 300;
+  font-size: 16px; color: var(--muted);
+  max-width: 500px; margin: 0 auto 16px;
+  line-height: 1.7; font-weight: 300;
+  animation: fadeUp 0.6s 0.2s ease both;
 }
 
-/* CONVERTER BOX */
-.converter {
+.hero-pills {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  justify-content: center; margin-bottom: 56px;
+  animation: fadeUp 0.6s 0.3s ease both;
+}
+.pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--faint); border: 1px solid var(--border2);
+  border-radius: 100px; padding: 5px 14px;
+  font-size: 12px; color: var(--muted2);
+  font-family: 'DM Mono', monospace;
+}
+.pill-icon { font-size: 13px; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* MAIN CONVERTER CARD */
+.card {
   position: relative; z-index: 1;
-  max-width: 720px; margin: 0 auto 80px;
-  padding: 0 40px;
+  max-width: 760px; margin: 0 auto 80px;
+  padding: 0 32px;
+  animation: fadeUp 0.6s 0.35s ease both;
 }
 
-.upload-zone {
+.card-inner {
   background: var(--surface);
-  border: 2px dashed var(--border);
-  border-radius: 24px;
-  padding: 60px 40px;
+  border: 1px solid var(--border2);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,232,216,0.05);
+}
+
+/* DROP ZONE */
+.drop-zone {
+  padding: 56px 40px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: background 0.25s;
+  border-bottom: 1px solid var(--border);
   position: relative;
-  overflow: hidden;
 }
-.upload-zone:hover, .upload-zone.drag-over {
+.drop-zone:hover { background: rgba(0,232,216,0.03); }
+.drop-zone.drag-over {
+  background: rgba(0,232,216,0.06);
+  border-color: rgba(0,232,216,0.3);
+}
+.drop-zone.has-file { background: rgba(0,232,216,0.03); }
+
+.drop-icon-wrap {
+  width: 72px; height: 72px;
+  border-radius: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 32px;
+  transition: all 0.3s;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.drop-zone:hover .drop-icon-wrap,
+.drop-zone.drag-over .drop-icon-wrap {
   border-color: var(--cyan);
-  background: rgba(0,232,216,0.04);
-  box-shadow: 0 0 60px rgba(0,232,216,0.08);
+  box-shadow: 0 0 0 4px rgba(0,232,216,0.12), 0 8px 24px rgba(0,0,0,0.3);
+  transform: scale(1.05);
 }
-.upload-zone.has-file {
-  border-color: rgba(0,232,216,0.4);
-  border-style: solid;
+.drop-zone.has-file .drop-icon-wrap {
+  background: rgba(0,232,216,0.1);
+  border-color: var(--cyan);
 }
-.upload-icon {
-  font-size: 56px; margin-bottom: 16px;
-  display: block;
-  animation: float 3s ease-in-out infinite;
-}
-@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-.upload-title {
+
+.drop-title {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 28px; letter-spacing: 2px; color: #fff;
-  margin-bottom: 8px;
+  font-size: 26px; letter-spacing: 2px; color: #fff;
+  margin-bottom: 6px;
 }
-.upload-sub { font-size: 14px; color: var(--muted); }
-.upload-sub span { color: var(--cyan); }
+.drop-sub { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.drop-sub .hl { color: var(--cyan); }
 #fileInput { display: none; }
 
-/* PREVIEW */
-.preview-wrap {
+.file-info {
   display: none;
-  gap: 40px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 40px;
-  flex-wrap: wrap;
+  align-items: center; gap: 12px;
+  margin-top: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 12px; padding: 12px 16px;
+  text-align: left;
 }
-.preview-item { text-align: center; }
-.preview-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px; color: var(--muted);
-  letter-spacing: 2px; text-transform: uppercase;
-  margin-bottom: 12px;
+.file-info.visible { display: flex; }
+.file-icon { font-size: 22px; }
+.file-details { flex: 1; min-width: 0; }
+.file-name {
+  font-size: 13px; font-weight: 600; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.preview-video-wrap {
-  width: 200px; height: 200px;
-  border-radius: 16px; overflow: hidden;
-  background: #000; border: 1px solid var(--border);
-  position: relative;
-}
-.preview-circle-wrap {
-  width: 200px; height: 200px;
-  border-radius: 50%; overflow: hidden;
-  background: #000;
-  border: 3px solid var(--cyan);
-  box-shadow: 0 0 40px rgba(0,232,216,0.3);
-  position: relative;
-}
-.preview-video-wrap video,
-.preview-circle-wrap video {
-  width: 100%; height: 100%; object-fit: cover;
-}
-.arrow-icon {
-  font-size: 32px; color: var(--cyan);
-  animation: arrow-pulse 1.5s ease-in-out infinite;
-}
-@keyframes arrow-pulse { 0%,100%{transform:translateX(0);opacity:1} 50%{transform:translateX(6px);opacity:.6} }
+.file-size { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+.file-check { color: var(--cyan); font-size: 18px; }
 
-/* SETTINGS */
-.settings {
+/* PREVIEW */
+.preview-section {
   display: none;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 32px;
-  margin-top: 24px;
+  padding: 32px 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
 }
-.settings-title {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px; color: var(--cyan);
-  letter-spacing: 2px; text-transform: uppercase;
+.preview-section.visible { display: block; }
+.preview-label-row {
+  display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 20px;
 }
-.settings-row {
-  display: flex; gap: 16px; flex-wrap: wrap;
+.preview-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--muted);
+  letter-spacing: 2px; text-transform: uppercase;
 }
-.setting-item { flex: 1; min-width: 140px; }
+.preview-videos {
+  display: flex; gap: 32px; align-items: center; justify-content: center;
+  flex-wrap: wrap;
+}
+.pv-item { text-align: center; }
+.pv-item-label {
+  font-size: 11px; color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.pv-box {
+  width: 160px; height: 160px;
+  border-radius: 14px; overflow: hidden;
+  background: #000; border: 1px solid var(--border2);
+}
+.pv-circle {
+  width: 160px; height: 160px;
+  border-radius: 50%; overflow: hidden;
+  background: #000;
+  border: 2.5px solid var(--cyan);
+  box-shadow: 0 0 32px rgba(0,232,216,0.25);
+}
+.pv-box video, .pv-circle video { width: 100%; height: 100%; object-fit: cover; }
+.pv-arrow { font-size: 28px; color: var(--cyan); opacity: 0.6; }
+
+/* SETTINGS */
+.settings-section {
+  display: none;
+  padding: 28px 40px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-section.visible { display: block; }
+.settings-header {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--muted);
+  letter-spacing: 2.5px; text-transform: uppercase;
+  margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+}
+.settings-header::before {
+  content: ''; width: 12px; height: 1px; background: var(--cyan);
+}
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.setting-item {}
 .setting-label {
-  font-size: 12px; color: var(--muted);
-  margin-bottom: 8px; display: block;
+  font-size: 11px; color: var(--muted);
+  margin-bottom: 7px; display: block;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.5px;
 }
-select, input[type="range"] {
+select {
   width: 100%;
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border2);
   border-radius: 10px;
   color: #fff;
-  padding: 10px 14px;
+  padding: 9px 12px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   appearance: none;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,0.3)'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
 }
-select:hover, select:focus { border-color: var(--cyan); outline: none; }
+select:hover, select:focus {
+  border-color: rgba(0,232,216,0.5);
+  box-shadow: 0 0 0 3px rgba(0,232,216,0.08);
+  outline: none;
+}
 
-/* CONVERT BUTTON */
+/* ACTION */
+.action-section {
+  padding: 28px 40px;
+}
 .btn-convert {
-  display: block; width: 100%;
-  background: var(--cyan); color: var(--bg);
+  width: 100%;
+  background: var(--cyan);
+  color: var(--bg);
   border: none; border-radius: 14px;
-  padding: 18px; margin-top: 24px;
+  padding: 17px;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 22px; letter-spacing: 3px;
+  font-size: 21px; letter-spacing: 3px;
   cursor: pointer;
   transition: all 0.2s;
   display: none;
+  position: relative; overflow: hidden;
 }
-.btn-convert:hover { opacity: 0.85; transform: translateY(-2px); box-shadow: 0 10px 40px rgba(0,232,216,0.3); }
-.btn-convert:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-convert::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s;
+}
+.btn-convert:hover::before { transform: translateX(100%); }
+.btn-convert:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,232,216,0.35); }
+.btn-convert:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-convert.visible { display: block; }
 
 /* PROGRESS */
-.progress-wrap {
+.progress-section {
   display: none;
-  margin-top: 24px;
+  padding: 28px 40px;
+  border-top: 1px solid var(--border);
 }
-.progress-label {
+.progress-section.visible { display: block; }
+.progress-top {
   display: flex; justify-content: space-between;
-  font-size: 13px; color: var(--muted);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
-.progress-bar {
-  height: 6px; background: var(--border);
+.progress-title { font-size: 13px; color: var(--muted2); font-weight: 500; }
+.progress-pct {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px; color: var(--cyan);
+}
+.progress-track {
+  height: 5px; background: var(--border2);
   border-radius: 100px; overflow: hidden;
+  margin-bottom: 10px;
 }
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--cyan), var(--blue));
-  border-radius: 100px;
-  width: 0%; transition: width 0.3s;
+  border-radius: 100px; width: 0%;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 12px rgba(0,232,216,0.5);
 }
 .progress-status {
   font-family: 'DM Mono', monospace;
-  font-size: 12px; color: var(--cyan);
-  margin-top: 10px; text-align: center;
+  font-size: 11px; color: var(--muted);
+  letter-spacing: 1px; text-align: center;
 }
 
 /* DOWNLOAD */
-.download-wrap {
+.download-section {
   display: none;
+  padding: 32px 40px;
+  border-top: 1px solid var(--border);
   text-align: center;
-  margin-top: 32px;
+  background: linear-gradient(180deg, rgba(0,232,216,0.04), transparent);
+}
+.download-section.visible { display: block; }
+.download-success {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(0,232,216,0.1);
+  border: 1px solid rgba(0,232,216,0.3);
+  border-radius: 100px; padding: 6px 16px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: var(--cyan);
+  margin-bottom: 20px; letter-spacing: 1px;
 }
 .btn-download {
   display: inline-flex; align-items: center; gap: 10px;
-  background: linear-gradient(135deg, var(--cyan), var(--blue));
+  background: linear-gradient(135deg, var(--cyan) 0%, #60a5fa 100%);
   color: var(--bg); border: none; border-radius: 14px;
-  padding: 16px 40px;
+  padding: 15px 40px;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 20px; letter-spacing: 2px;
+  font-size: 20px; letter-spacing: 2.5px;
   cursor: pointer; text-decoration: none;
-  transition: all 0.2s;
-  box-shadow: 0 10px 40px rgba(0,232,216,0.2);
+  transition: all 0.25s;
+  box-shadow: 0 10px 36px rgba(0,232,216,0.25);
 }
-.btn-download:hover { transform: translateY(-3px); box-shadow: 0 16px 50px rgba(0,232,216,0.35); }
+.btn-download:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 50px rgba(0,232,216,0.4);
+}
 .download-note {
-  font-size: 13px; color: var(--muted);
-  margin-top: 12px;
+  font-size: 12px; color: var(--muted);
+  margin-top: 14px; line-height: 1.6;
 }
+.btn-reset {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 10px; padding: 8px 18px;
+  font-size: 12px; color: var(--muted);
+  cursor: pointer; margin-top: 16px;
+  transition: all 0.2s; font-family: 'DM Sans', sans-serif;
+}
+.btn-reset:hover { color: #fff; border-color: var(--border2); background: var(--surface2); }
 
 /* HOW IT WORKS */
-.how-section {
+.how {
   position: relative; z-index: 1;
-  max-width: 720px; margin: 0 auto 100px;
-  padding: 0 40px;
+  max-width: 760px; margin: 0 auto 100px;
+  padding: 0 32px;
 }
-.how-title {
+.section-title {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 42px; letter-spacing: 2px;
-  text-align: center; margin-bottom: 40px;
+  font-size: 40px; letter-spacing: 3px;
+  text-align: center; margin-bottom: 8px;
+}
+.section-sub {
+  text-align: center; color: var(--muted);
+  font-size: 14px; margin-bottom: 36px;
 }
 .steps {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
 }
 .step {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px; padding: 24px;
-  text-align: center;
+  border-radius: 18px; padding: 28px 22px;
+  position: relative; overflow: hidden;
   transition: border-color 0.2s, transform 0.2s;
 }
-.step:hover { border-color: var(--cyan); transform: translateY(-4px); }
+.step::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0; transition: opacity 0.2s;
+}
+.step:hover { border-color: rgba(0,232,216,0.2); transform: translateY(-4px); }
+.step:hover::before { opacity: 1; }
 .step-num {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 48px; color: var(--cyan);
-  line-height: 1; margin-bottom: 8px;
+  font-size: 52px; line-height: 1;
+  color: rgba(0,232,216,0.15); margin-bottom: 12px;
 }
 .step-title {
-  font-size: 15px; font-weight: 600;
-  color: #fff; margin-bottom: 6px;
+  font-size: 14px; font-weight: 700; color: #fff;
+  margin-bottom: 6px;
 }
-.step-sub { font-size: 13px; color: var(--muted); }
+.step-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+/* PERKS */
+.perks {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  justify-content: center;
+  max-width: 760px; margin: 0 auto 40px;
+  padding: 0 32px;
+}
+.perk {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--faint); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 16px;
+  font-size: 13px; color: var(--muted2);
+}
+.perk-icon { font-size: 16px; }
 
 /* FOOTER */
 footer {
   position: relative; z-index: 1;
-  text-align: center; padding: 40px;
+  text-align: center; padding: 32px 40px;
   border-top: 1px solid var(--border);
-  font-size: 13px; color: var(--muted);
+  font-size: 12px; color: var(--muted);
+  font-family: 'DM Mono', monospace; letter-spacing: 0.5px;
 }
 footer a { color: var(--cyan); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
 
-/* LOADING OVERLAY */
-#loading-ffmpeg {
-  position: fixed; inset: 0; z-index: 200;
-  background: rgba(4,6,10,0.95);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 20px;
-}
-.loading-spinner {
-  width: 48px; height: 48px;
-  border: 3px solid var(--border);
-  border-top-color: var(--cyan);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.loading-text {
+/* ERROR TOAST */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: #1a0a0a; border: 1px solid rgba(239,68,68,0.4);
+  border-radius: 12px; padding: 14px 20px;
+  font-size: 13px; color: #fca5a5;
   font-family: 'DM Mono', monospace;
-  font-size: 13px; color: var(--cyan);
-  letter-spacing: 2px;
+  z-index: 200; max-width: 420px; text-align: center;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
 }
+.toast.show { transform: translateX(-50%) translateY(0); }
 
 @media (max-width: 600px) {
-  nav { padding: 14px 20px; }
-  .hero { padding: 120px 20px 60px; }
-  .converter, .how-section { padding: 0 20px; }
+  nav { padding: 0 20px; }
+  .hero { padding: 110px 20px 50px; }
+  .card { padding: 0 16px; }
+  .drop-zone, .preview-section, .settings-section, .action-section,
+  .progress-section, .download-section { padding-left: 22px; padding-right: 22px; }
+  .settings-grid { grid-template-columns: 1fr; }
   .steps { grid-template-columns: 1fr; }
-  .preview-wrap { gap: 20px; }
-  .arrow-icon { transform: rotate(90deg); }
+  .pv-arrow { display: none; }
+  .preview-videos { flex-direction: column; gap: 20px; }
+  .how { padding: 0 16px; }
+  .perks { padding: 0 16px; }
 }
 </style>
 </head>
@@ -368,283 +542,427 @@ footer a { color: var(--cyan); text-decoration: none; }
 
 <div class="orb orb1"></div>
 <div class="orb orb2"></div>
+<div class="orb orb3"></div>
 
-<!-- LOADING -->
-<div id="loading-ffmpeg">
-  <div class="loading-spinner"></div>
-  <div class="loading-text">Загружаем конвертер...</div>
-</div>
-
-<!-- NAV -->
 <nav>
-  <div class="nav-logo">CIRCLE<span>.AI</span></div>
-  <div class="nav-badge">⚡ Powered by ElSpy AI</div>
+  <div class="nav-logo"><span class="accent">CIRCLE</span>.AI</div>
+  <div class="nav-tag">
+    <div class="nav-dot"></div>
+    Работает в браузере
+  </div>
 </nav>
 
-<!-- HERO -->
 <div class="hero">
-  <div class="hero-badge">Бесплатный конвертер</div>
+  <div class="hero-eyebrow">
+    <span class="hero-eyebrow-icon">🎯</span>
+    Бесплатный конвертер для Telegram
+  </div>
   <h1>
-    <span class="line1">Видео в</span>
-    <span class="line2">Кружок</span>
+    <span class="w1">Видео в</span>
+    <span class="w2">Кружок</span>
   </h1>
-  <p class="hero-sub">Загрузи любое видео — получи кружок для Telegram. Всё работает прямо в браузере, без серверов и регистрации.</p>
+  <p class="hero-sub">
+    Загружай любое видео и мгновенно получай кружок для Telegram.<br>
+    Всё работает прямо в браузере — без ожидания и серверов.
+  </p>
+  <div class="hero-pills">
+    <div class="pill"><span class="pill-icon">⚡</span> Мгновенно</div>
+    <div class="pill"><span class="pill-icon">🔒</span> Приватно</div>
+    <div class="pill"><span class="pill-icon">📱</span> MP4 · MOV · WebM · AVI</div>
+    <div class="pill"><span class="pill-icon">✂️</span> Кроп по центру</div>
+  </div>
 </div>
 
-<!-- CONVERTER -->
-<div class="converter">
+<div class="card">
+  <div class="card-inner">
 
-  <div class="upload-zone" id="uploadZone">
-    <span class="upload-icon">🎬</span>
-    <div class="upload-title">Перетащи видео сюда</div>
-    <p class="upload-sub">или <span>нажми чтобы выбрать</span> · MP4, MOV, AVI, WebM</p>
-    <input type="file" id="fileInput" accept="video/*">
-  </div>
-
-  <!-- PREVIEW -->
-  <div class="preview-wrap" id="previewWrap">
-    <div class="preview-item">
-      <div class="preview-label">Оригинал</div>
-      <div class="preview-video-wrap">
-        <video id="previewOrig" autoplay muted loop playsinline></video>
+    <!-- DROP ZONE -->
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon-wrap" id="dropIcon">🎬</div>
+      <div class="drop-title" id="dropTitle">Перетащи видео сюда</div>
+      <p class="drop-sub" id="dropSub">или <span class="hl">нажми чтобы выбрать</span> · MP4, MOV, AVI, WebM</p>
+      <input type="file" id="fileInput" accept="video/*">
+      <div class="file-info" id="fileInfo">
+        <span class="file-icon">🎥</span>
+        <div class="file-details">
+          <div class="file-name" id="fileName">—</div>
+          <div class="file-size" id="fileSize">—</div>
+        </div>
+        <span class="file-check">✓</span>
       </div>
     </div>
-    <div class="arrow-icon">→</div>
-    <div class="preview-item">
-      <div class="preview-label">Кружок</div>
-      <div class="preview-circle-wrap">
-        <video id="previewCircle" autoplay muted loop playsinline></video>
+
+    <!-- PREVIEW -->
+    <div class="preview-section" id="previewSection">
+      <div class="preview-label-row">
+        <span class="preview-tag">Предпросмотр</span>
+        <span class="preview-tag" id="vidDuration">—</span>
+      </div>
+      <div class="preview-videos">
+        <div class="pv-item">
+          <div class="pv-item-label">Оригинал</div>
+          <div class="pv-box"><video id="vidOrig" autoplay muted loop playsinline></video></div>
+        </div>
+        <div class="pv-arrow">→</div>
+        <div class="pv-item">
+          <div class="pv-item-label">Кружок</div>
+          <div class="pv-circle"><video id="vidCircle" autoplay muted loop playsinline></video></div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- SETTINGS -->
-  <div class="settings" id="settingsWrap">
-    <div class="settings-title">⚙ Настройки</div>
-    <div class="settings-row">
-      <div class="setting-item">
-        <span class="setting-label">Качество</span>
-        <select id="qualitySelect">
-          <option value="28">Стандарт</option>
-          <option value="23" selected>Высокое</option>
-          <option value="18">Максимум</option>
-        </select>
-      </div>
-      <div class="setting-item">
-        <span class="setting-label">Размер</span>
-        <select id="sizeSelect">
-          <option value="384">384px (лёгкий)</option>
-          <option value="512" selected>512px (стандарт)</option>
-          <option value="640">640px (макс Telegram)</option>
-        </select>
-      </div>
-      <div class="setting-item">
-        <span class="setting-label">Длительность (сек, 0 = всё)</span>
-        <select id="durationSelect">
-          <option value="0">Полное видео</option>
-          <option value="60">До 60 сек</option>
-          <option value="30">До 30 сек</option>
-          <option value="15">До 15 сек</option>
-        </select>
+    <!-- SETTINGS -->
+    <div class="settings-section" id="settingsSection">
+      <div class="settings-header">Настройки</div>
+      <div class="settings-grid">
+        <div class="setting-item">
+          <span class="setting-label">Размер</span>
+          <select id="sizeSelect">
+            <option value="384">384px — лёгкий</option>
+            <option value="512" selected>512px — стандарт</option>
+            <option value="640">640px — макс Telegram</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Длительность</span>
+          <select id="durationSelect">
+            <option value="0">Полное видео</option>
+            <option value="60">До 60 сек</option>
+            <option value="30">До 30 сек</option>
+            <option value="15">До 15 сек</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Качество</span>
+          <select id="qualitySelect">
+            <option value="0.3">Экономный</option>
+            <option value="0.6" selected>Стандарт</option>
+            <option value="0.85">Высокое</option>
+          </select>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- CONVERT BTN -->
-  <button class="btn-convert" id="btnConvert">🔄 Конвертировать в кружок</button>
-
-  <!-- PROGRESS -->
-  <div class="progress-wrap" id="progressWrap">
-    <div class="progress-label">
-      <span>Конвертация...</span>
-      <span id="progressPct">0%</span>
+    <!-- ACTION -->
+    <div class="action-section">
+      <button class="btn-convert" id="btnConvert">⚡ Конвертировать в кружок</button>
     </div>
-    <div class="progress-bar">
-      <div class="progress-fill" id="progressFill"></div>
+
+    <!-- PROGRESS -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-top">
+        <span class="progress-title">Конвертация...</span>
+        <span class="progress-pct" id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-status" id="progressStatus">Подготовка...</div>
     </div>
-    <div class="progress-status" id="progressStatus">Подготовка...</div>
-  </div>
 
-  <!-- DOWNLOAD -->
-  <div class="download-wrap" id="downloadWrap">
-    <a id="btnDownload" class="btn-download" download="circle.mp4">
-      ⬇ Скачать кружок
-    </a>
-    <p class="download-note">Готово! Отправь файл в Telegram как видео-сообщение 🎉</p>
-  </div>
+    <!-- DOWNLOAD -->
+    <div class="download-section" id="downloadSection">
+      <div class="download-success">✓ Готово!</div>
+      <br>
+      <a id="btnDownload" class="btn-download" download="circle.mp4">⬇ Скачать кружок</a>
+      <p class="download-note">
+        Отправь файл в Telegram как <strong>видео-файл</strong> (не как документ)<br>
+        и он станет кружком 🎉
+      </p>
+      <br>
+      <button class="btn-reset" id="btnReset">↺ Конвертировать другое видео</button>
+    </div>
 
+  </div>
+</div>
+
+<!-- PERKS -->
+<div class="perks">
+  <div class="perk"><span class="perk-icon">🧠</span> Без FFmpeg — мгновенная загрузка</div>
+  <div class="perk"><span class="perk-icon">🔐</span> Данные не покидают браузер</div>
+  <div class="perk"><span class="perk-icon">📲</span> Работает на телефоне</div>
+  <div class="perk"><span class="perk-icon">🆓</span> Полностью бесплатно</div>
 </div>
 
 <!-- HOW IT WORKS -->
-<div class="how-section">
-  <div class="how-title">Как это работает</div>
+<div class="how">
+  <div class="section-title">Как это работает</div>
+  <p class="section-sub">Три шага — и кружок готов</p>
   <div class="steps">
     <div class="step">
       <div class="step-num">01</div>
       <div class="step-title">Загрузи видео</div>
-      <div class="step-sub">Любой формат — MP4, MOV, AVI, WebM</div>
+      <div class="step-desc">Перетащи или выбери файл — любой формат: MP4, MOV, WebM, AVI</div>
     </div>
     <div class="step">
       <div class="step-num">02</div>
       <div class="step-title">Нажми конвертировать</div>
-      <div class="step-sub">FFmpeg обрежет видео в квадрат 640×640</div>
+      <div class="step-desc">Canvas API обрежет видео по центру и создаст круглый формат Telegram</div>
     </div>
     <div class="step">
       <div class="step-num">03</div>
       <div class="step-title">Скачай и отправь</div>
-      <div class="step-sub">Отправь в Telegram как видео-файл</div>
+      <div class="step-desc">Отправь файл в Telegram как видео — получится кружок</div>
     </div>
   </div>
 </div>
 
-<!-- FOOTER -->
 <footer>
-  <p>Circle.AI — бесплатный конвертер · <a href="https://elspy.ai6700.com" target="_blank">ElSpy AI</a> · Все данные обрабатываются локально в твоём браузере</p>
+  Circle.AI — бесплатный конвертер ·
+  <a href="https://elspy.ai" target="_blank">ElSpy AI</a> ·
+  Все данные обрабатываются локально в браузере
 </footer>
 
-<script>
-const { createFFmpeg, fetchFile } = FFmpeg;
-const ffmpeg = createFFmpeg({ log: false });
+<div class="toast" id="toast"></div>
 
+<script>
+// ─── STATE ──────────────────────────────────────────────────────────────────
 let selectedFile = null;
 let outputUrl = null;
+let mediaRecorder = null;
 
-// Load FFmpeg
-async function loadFFmpeg() {
-  try {
-    await ffmpeg.load();
-    document.getElementById('loading-ffmpeg').style.display = 'none';
-  } catch(e) {
-    document.getElementById('loading-ffmpeg').innerHTML = '<div style="color:#ef4444;font-family:DM Mono,monospace;font-size:13px;text-align:center;padding:20px;">Ошибка загрузки конвертера.<br>Попробуй обновить страницу.</div>';
-  }
-}
-loadFFmpeg();
+// ─── DOM ─────────────────────────────────────────────────────────────────────
+const dropZone    = document.getElementById('dropZone');
+const fileInput   = document.getElementById('fileInput');
+const dropTitle   = document.getElementById('dropTitle');
+const dropSub     = document.getElementById('dropSub');
+const dropIcon    = document.getElementById('dropIcon');
+const fileInfo    = document.getElementById('fileInfo');
+const fileName    = document.getElementById('fileName');
+const fileSize    = document.getElementById('fileSize');
+const previewSection   = document.getElementById('previewSection');
+const settingsSection  = document.getElementById('settingsSection');
+const progressSection  = document.getElementById('progressSection');
+const downloadSection  = document.getElementById('downloadSection');
+const btnConvert  = document.getElementById('btnConvert');
+const btnDownload = document.getElementById('btnDownload');
+const btnReset    = document.getElementById('btnReset');
+const vidOrig     = document.getElementById('vidOrig');
+const vidCircle   = document.getElementById('vidCircle');
+const vidDuration = document.getElementById('vidDuration');
+const progressFill   = document.getElementById('progressFill');
+const progressPct    = document.getElementById('progressPct');
+const progressStatus = document.getElementById('progressStatus');
 
-// Upload zone click
-const uploadZone = document.getElementById('uploadZone');
-const fileInput = document.getElementById('fileInput');
-
-uploadZone.addEventListener('click', () => fileInput.click());
+// ─── UPLOAD ──────────────────────────────────────────────────────────────────
+dropZone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
 
-// Drag & drop
-uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
-uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-uploadZone.addEventListener('drop', e => {
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
   e.preventDefault();
-  uploadZone.classList.remove('drag-over');
+  dropZone.classList.remove('drag-over');
   handleFile(e.dataTransfer.files[0]);
 });
 
 function handleFile(file) {
-  if (!file || !file.type.startsWith('video/')) return;
+  if (!file) return;
+  if (!file.type.startsWith('video/')) { showToast('❌ Выбери видео файл'); return; }
   selectedFile = file;
 
   const url = URL.createObjectURL(file);
+  vidOrig.src = url;
+  vidCircle.src = url;
 
-  // Show original preview
-  const origVideo = document.getElementById('previewOrig');
-  const circleVideo = document.getElementById('previewCircle');
-  origVideo.src = url;
-  circleVideo.src = url;
+  fileName.textContent = file.name;
+  fileSize.textContent = formatBytes(file.size);
 
-  document.getElementById('previewWrap').style.display = 'flex';
-  document.getElementById('settingsWrap').style.display = 'block';
-  document.getElementById('btnConvert').style.display = 'block';
-  document.getElementById('downloadWrap').style.display = 'none';
-  document.getElementById('progressWrap').style.display = 'none';
+  dropZone.classList.add('has-file');
+  dropIcon.textContent = '✅';
+  dropTitle.textContent = 'Видео загружено';
+  dropSub.textContent = file.name;
+  fileInfo.classList.add('visible');
 
-  uploadZone.classList.add('has-file');
-  uploadZone.querySelector('.upload-title').textContent = file.name;
-  uploadZone.querySelector('.upload-sub').textContent = `${(file.size / 1024 / 1024).toFixed(1)} МБ`;
+  previewSection.classList.add('visible');
+  settingsSection.classList.add('visible');
+  btnConvert.classList.add('visible');
+  downloadSection.classList.remove('visible');
+  progressSection.classList.remove('visible');
+
+  // Show duration
+  vidOrig.onloadedmetadata = () => {
+    const d = Math.round(vidOrig.duration);
+    vidDuration.textContent = `${d} сек`;
+  };
 }
 
-// Convert
-document.getElementById('btnConvert').addEventListener('click', async () => {
+function formatBytes(b) {
+  if (b < 1024*1024) return (b/1024).toFixed(0) + ' КБ';
+  return (b/1024/1024).toFixed(1) + ' МБ';
+}
+
+// ─── CONVERT ─────────────────────────────────────────────────────────────────
+btnConvert.addEventListener('click', () => {
   if (!selectedFile) return;
-
-  const btn = document.getElementById('btnConvert');
-  btn.disabled = true;
-
-  const quality = document.getElementById('qualitySelect').value;
-  const size = document.getElementById('sizeSelect').value;
-  const duration = document.getElementById('durationSelect').value;
-
-  document.getElementById('progressWrap').style.display = 'block';
-  document.getElementById('downloadWrap').style.display = 'none';
-
-  setProgress(5, 'Загружаем файл...');
-
-  try {
-    // Write input file
-    ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(selectedFile));
-    setProgress(20, 'Обрезаем в квадрат...');
-
-    // Build FFmpeg command
-    const args = ['-i', 'input.mp4'];
-
-    // Duration limit
-    if (duration !== '0') {
-      args.push('-t', duration);
-    }
-
-    // Crop to square center + resize + encode
-    args.push(
-      '-vf', `crop=min(iw\\,ih):min(iw\\,ih),scale=${size}:${size}`,
-      '-c:v', 'libx264',
-      '-crf', quality,
-      '-preset', 'fast',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-movflags', '+faststart',
-      '-pix_fmt', 'yuv420p',
-      'output.mp4'
-    );
-
-    setProgress(40, 'Конвертируем...');
-
-    ffmpeg.setProgress(({ ratio }) => {
-      const pct = Math.round(40 + ratio * 50);
-      setProgress(pct, `Конвертация ${Math.round(ratio * 100)}%...`);
-    });
-
-    await ffmpeg.run(...args);
-    setProgress(95, 'Финализируем...');
-
-    const data = ffmpeg.FS('readFile', 'output.mp4');
-    const blob = new Blob([data.buffer], { type: 'video/mp4' });
-
-    if (outputUrl) URL.revokeObjectURL(outputUrl);
-    outputUrl = URL.createObjectURL(blob);
-
-    // Update circle preview
-    document.getElementById('previewCircle').src = outputUrl;
-
-    // Set download link
-    document.getElementById('btnDownload').href = outputUrl;
-
-    setProgress(100, 'Готово! ✅');
-
-    setTimeout(() => {
-      document.getElementById('progressWrap').style.display = 'none';
-      document.getElementById('downloadWrap').style.display = 'block';
-    }, 800);
-
-    // Cleanup
-    ffmpeg.FS('unlink', 'input.mp4');
-    ffmpeg.FS('unlink', 'output.mp4');
-
-  } catch(e) {
-    setProgress(0, '❌ Ошибка: ' + e.message);
-  }
-
-  btn.disabled = false;
+  convertVideo();
 });
 
+async function convertVideo() {
+  const size     = parseInt(document.getElementById('sizeSelect').value);
+  const maxSec   = parseInt(document.getElementById('durationSelect').value);
+  const quality  = parseFloat(document.getElementById('qualitySelect').value);
+
+  btnConvert.disabled = true;
+  progressSection.classList.add('visible');
+  downloadSection.classList.remove('visible');
+  setProgress(5, 'Подготовка...');
+
+  try {
+    // Create video element for source
+    const video = document.createElement('video');
+    video.src = URL.createObjectURL(selectedFile);
+    video.muted = true;
+    video.playsInline = true;
+
+    await new Promise((res, rej) => {
+      video.onloadedmetadata = res;
+      video.onerror = rej;
+    });
+
+    const totalDuration = maxSec > 0 ? Math.min(video.duration, maxSec) : video.duration;
+
+    setProgress(15, 'Настраиваем canvas...');
+
+    // Setup canvas
+    const canvas = document.createElement('canvas');
+    canvas.width  = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Circular clip
+    function drawFrame() {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const side = Math.min(vw, vh);
+      const sx = (vw - side) / 2;
+      const sy = (vh - side) / 2;
+
+      ctx.clearRect(0, 0, size, size);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, size, size);
+      ctx.restore();
+    }
+
+    setProgress(25, 'Начинаем запись...');
+
+    // MediaRecorder
+    const stream = canvas.captureStream(30);
+
+    // Pick best mime
+    const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
+      .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+
+    const chunks = [];
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType,
+      videoBitsPerSecond: quality * 2_500_000
+    });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const recordingDone = new Promise(res => { mediaRecorder.onstop = res; });
+
+    mediaRecorder.start(100);
+    video.currentTime = 0;
+
+    setProgress(30, 'Рендерим кадры...');
+
+    await new Promise((res, rej) => {
+      video.onplay = null;
+      video.play().catch(rej);
+
+      let animFrame;
+
+      function loop() {
+        if (video.ended || video.currentTime >= totalDuration) {
+          cancelAnimationFrame(animFrame);
+          video.pause();
+          mediaRecorder.stop();
+          res();
+          return;
+        }
+        drawFrame();
+        const p = 30 + Math.round((video.currentTime / totalDuration) * 60);
+        setProgress(p, `Рендерим: ${Math.round(video.currentTime)}с / ${Math.round(totalDuration)}с`);
+        animFrame = requestAnimationFrame(loop);
+      }
+
+      video.onended = () => {
+        cancelAnimationFrame(animFrame);
+        mediaRecorder.stop();
+        res();
+      };
+
+      loop();
+    });
+
+    await recordingDone;
+    setProgress(95, 'Финализируем...');
+
+    if (outputUrl) URL.revokeObjectURL(outputUrl);
+    const blob = new Blob(chunks, { type: mimeType });
+    outputUrl = URL.createObjectURL(blob);
+
+    // Ext
+    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    btnDownload.href = outputUrl;
+    btnDownload.download = `circle.${ext}`;
+
+    // Update circle preview
+    vidCircle.src = outputUrl;
+
+    setProgress(100, '✅ Готово!');
+    setTimeout(() => {
+      progressSection.classList.remove('visible');
+      downloadSection.classList.add('visible');
+    }, 700);
+
+  } catch(e) {
+    console.error(e);
+    setProgress(0, '❌ Ошибка: ' + e.message);
+    showToast('❌ Ошибка конвертации: ' + e.message);
+  }
+
+  btnConvert.disabled = false;
+}
+
 function setProgress(pct, status) {
-  document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressPct').textContent = pct + '%';
-  document.getElementById('progressStatus').textContent = status;
+  progressFill.style.width = pct + '%';
+  progressPct.textContent = pct + '%';
+  progressStatus.textContent = status;
+}
+
+// ─── RESET ───────────────────────────────────────────────────────────────────
+btnReset.addEventListener('click', () => {
+  selectedFile = null;
+  if (outputUrl) { URL.revokeObjectURL(outputUrl); outputUrl = null; }
+
+  dropZone.classList.remove('has-file', 'drag-over');
+  dropIcon.textContent = '🎬';
+  dropTitle.textContent = 'Перетащи видео сюда';
+  dropSub.innerHTML = 'или <span class="hl">нажми чтобы выбрать</span> · MP4, MOV, AVI, WebM';
+  fileInfo.classList.remove('visible');
+
+  previewSection.classList.remove('visible');
+  settingsSection.classList.remove('visible');
+  btnConvert.classList.remove('visible');
+  progressSection.classList.remove('visible');
+  downloadSection.classList.remove('visible');
+
+  vidOrig.src = '';
+  vidCircle.src = '';
+  fileInput.value = '';
+});
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
 }
 </script>
 </body>
