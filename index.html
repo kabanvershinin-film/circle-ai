@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Circle.AI — конвертер кружков</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js" crossorigin="anonymous"></script>
 
 <style>
 :root {
@@ -564,6 +566,31 @@ footer a:hover { text-decoration: underline; }
 }
 @keyframes ffload { 0%{width:0%} 40%{width:60%} 80%{width:85%} 100%{width:95%} }
 
+/* FFMPEG LOADING OVERLAY */
+#ffmpegOverlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(4,6,10,0.97);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px;
+  backdrop-filter: blur(8px);
+  transition: opacity 0.4s;
+}
+#ffmpegOverlay.hidden { display: none; }
+.ff-spinner {
+  width: 44px; height: 44px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ff-text { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--cyan); letter-spacing: 2px; }
+.ff-sub  { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 1px; }
+.ff-bar-wrap { width: 220px; height: 3px; background: var(--border2); border-radius: 100px; overflow: hidden; }
+.ff-bar { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--blue)); border-radius: 100px; animation: ffload 12s ease-in-out forwards; }
+@keyframes ffload { 0%{width:0%} 30%{width:40%} 70%{width:75%} 100%{width:92%} }
+
 @media (max-width: 600px) {
   nav { padding: 0 20px; }
   .hero { padding: 110px 20px 50px; }
@@ -584,6 +611,13 @@ footer a:hover { text-decoration: underline; }
 <div class="orb orb1"></div>
 <div class="orb orb2"></div>
 <div class="orb orb3"></div>
+
+<div id="ffmpegOverlay">
+  <div class="ff-spinner"></div>
+  <div class="ff-text">Загружаем конвертер...</div>
+  <div class="ff-bar-wrap"><div class="ff-bar"></div></div>
+  <div class="ff-sub">Только первый раз · ~10–15 сек</div>
+</div>
 
 <nav>
   <div class="nav-logo"><span class="accent">CIRCLE</span>.AI</div>
@@ -757,9 +791,29 @@ footer a:hover { text-decoration: underline; }
 <div class="toast" id="toast"></div>
 
 <script>
+const { FFmpeg } = FFmpegWASM;
+const { fetchFile, toBlobURL } = FFmpegUtil;
+const ffmpeg = new FFmpeg();
+let ffmpegReady = false;
 let selectedFile = null;
 let outputUrl = null;
-let mediaRecorder = null;
+
+const overlay = document.getElementById('ffmpegOverlay');
+
+async function loadFFmpeg() {
+  try {
+    const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+    });
+    ffmpegReady = true;
+    overlay.classList.add('hidden');
+  } catch(e) {
+    overlay.innerHTML = `<div style="color:#fca5a5;font-family:'DM Mono',monospace;font-size:12px;text-align:center;padding:32px;line-height:2">❌ Ошибка загрузки<br><span style="opacity:0.5;font-size:11px">Обнови страницу · ${e.message}</span></div>`;
+  }
+}
+loadFFmpeg();
 
 const dropZone    = document.getElementById('dropZone');
 const fileInput   = document.getElementById('fileInput');
@@ -822,100 +876,52 @@ function formatBytes(b) {
 }
 
 // ─── CONVERT ─────────────────────────────────────────────────────────────────
-btnConvert.addEventListener('click', () => { if (selectedFile) convertVideo(); });
+btnConvert.addEventListener('click', () => { if (selectedFile && ffmpegReady) convertVideo(); });
 
 async function convertVideo() {
-  const size   = parseInt(document.getElementById('sizeSelect').value);
-  const maxSec = parseInt(document.getElementById('durationSelect').value);
-  const bitrate = parseInt(document.getElementById('qualitySelect').value);
+  const size    = document.getElementById('sizeSelect').value;
+  const maxSec  = document.getElementById('durationSelect').value;
+  const quality = document.getElementById('qualitySelect').value;
 
   btnConvert.disabled = true;
   progressSection.classList.add('visible');
   downloadSection.classList.remove('visible');
-  setProgress(5, 'Подготовка...');
+  setProgress(5, 'Загружаем файл...');
 
   try {
-    const video = document.createElement('video');
-    video.src = URL.createObjectURL(selectedFile);
-    video.muted = true; video.playsInline = true;
-    await new Promise((res, rej) => { video.onloadedmetadata = res; video.onerror = rej; });
+    const inputName = 'in.mp4';
+    await ffmpeg.writeFile(inputName, await fetchFile(selectedFile));
+    setProgress(15, 'Обрезаем в квадрат...');
 
-    const totalDuration = maxSec > 0 ? Math.min(video.duration, maxSec) : video.duration;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = size; canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    function drawFrame() {
-      const vw = video.videoWidth, vh = video.videoHeight;
-      const side = Math.min(vw, vh);
-      const sx = (vw - side) / 2, sy = (vh - side) / 2;
-      ctx.clearRect(0, 0, size, size);
-      ctx.drawImage(video, sx, sy, side, side, 0, 0, size, size);
-    }
-
-    setProgress(20, 'Начинаем запись...');
-
-    const stream = canvas.captureStream(30);
-
-    // Try to get audio from original video
-    try {
-      const audioCtx = new AudioContext();
-      const src = audioCtx.createMediaElementSource(video);
-      const dest = audioCtx.createMediaStreamDestination();
-      src.connect(dest); src.connect(audioCtx.destination);
-      dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
-    } catch(e) { /* audio optional */ }
-
-    const mimeType = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
-      .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
-
-    const chunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-    const done = new Promise(res => mediaRecorder.onstop = res);
-
-    mediaRecorder.start(200);
-    video.currentTime = 0;
-    setProgress(25, 'Рендерим...');
-
-    await new Promise((res, rej) => {
-      video.play().catch(rej);
-      let raf;
-      function loop() {
-        if (video.currentTime >= totalDuration || video.ended) {
-          cancelAnimationFrame(raf);
-          video.pause();
-          mediaRecorder.stop();
-          return res();
-        }
-        drawFrame();
-        const p = 25 + Math.round((video.currentTime / totalDuration) * 65);
-        setProgress(p, `Рендерим: ${Math.round(video.currentTime)}с / ${Math.round(totalDuration)}с`);
-        raf = requestAnimationFrame(loop);
-      }
-      video.onended = () => { cancelAnimationFrame(raf); mediaRecorder.stop(); res(); };
-      loop();
+    ffmpeg.on('progress', ({ progress }) => {
+      const p = Math.round(20 + Math.min(progress, 1) * 70);
+      setProgress(p, `Конвертация ${Math.round(Math.min(progress,1)*100)}%...`);
     });
 
-    await done;
-    setProgress(96, 'Финализируем...');
+    const args = ['-i', inputName];
+    if (maxSec !== '0') args.push('-t', maxSec);
+    args.push(
+      '-vf', `crop=min(iw\\,ih):min(iw\\,ih),scale=${size}:${size}`,
+      '-c:v', 'libx264', '-crf', quality, '-preset', 'ultrafast',
+      '-c:a', 'aac', '-b:a', '128k',
+      '-movflags', '+faststart', '-pix_fmt', 'yuv420p',
+      'out.mp4'
+    );
 
+    await ffmpeg.exec(args);
+    setProgress(94, 'Финализируем...');
+
+    const data = await ffmpeg.readFile('out.mp4');
     if (outputUrl) URL.revokeObjectURL(outputUrl);
-    const blob = new Blob(chunks, { type: mimeType });
+    const blob = new Blob([data.buffer], { type: 'video/mp4' });
     outputUrl = URL.createObjectURL(blob);
-
-    // Always name .mp4 — Telegram accepts webm container named .mp4 as circle
     btnDownload.href = outputUrl;
     btnDownload.download = 'circle.mp4';
     vidCircle.src = outputUrl;
+    try { await ffmpeg.deleteFile(inputName); await ffmpeg.deleteFile('out.mp4'); } catch(e){}
 
     setProgress(100, '✅ Готово!');
-    setTimeout(() => {
-      progressSection.classList.remove('visible');
-      downloadSection.classList.add('visible');
-    }, 600);
-
+    setTimeout(() => { progressSection.classList.remove('visible'); downloadSection.classList.add('visible'); }, 600);
   } catch(e) {
     console.error(e);
     setProgress(0, '❌ Ошибка: ' + e.message);
