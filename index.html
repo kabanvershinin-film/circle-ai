@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Circle.AI — конвертер кружков</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 <style>
 :root {
   --bg: #04060a;
@@ -523,6 +525,46 @@ footer a:hover { text-decoration: underline; }
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 
+/* FFMPEG LOADING OVERLAY */
+#ffmpegOverlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(4,6,10,0.96);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px;
+  backdrop-filter: blur(8px);
+}
+#ffmpegOverlay.hidden { display: none; }
+.ff-spinner {
+  width: 44px; height: 44px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ff-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px; color: var(--cyan);
+  letter-spacing: 2px; text-align: center;
+}
+.ff-sub {
+  font-size: 11px; color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 1px;
+}
+.ff-bar-wrap {
+  width: 200px; height: 3px;
+  background: var(--border2); border-radius: 100px; overflow: hidden;
+}
+.ff-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--blue));
+  border-radius: 100px;
+  animation: ffload 8s ease-in-out forwards;
+}
+@keyframes ffload { 0%{width:0%} 40%{width:60%} 80%{width:85%} 100%{width:95%} }
+
 @media (max-width: 600px) {
   nav { padding: 0 20px; }
   .hero { padding: 110px 20px 50px; }
@@ -543,6 +585,14 @@ footer a:hover { text-decoration: underline; }
 <div class="orb orb1"></div>
 <div class="orb orb2"></div>
 <div class="orb orb3"></div>
+
+<!-- FFMPEG LOADING OVERLAY -->
+<div id="ffmpegOverlay">
+  <div class="ff-spinner"></div>
+  <div class="ff-text">Загружаем конвертер...</div>
+  <div class="ff-bar-wrap"><div class="ff-bar"></div></div>
+  <div class="ff-sub">Только первый раз · ~10 сек</div>
+</div>
 
 <nav>
   <div class="nav-logo"><span class="accent">CIRCLE</span>.AI</div>
@@ -635,9 +685,9 @@ footer a:hover { text-decoration: underline; }
         <div class="setting-item">
           <span class="setting-label">Качество</span>
           <select id="qualitySelect">
-            <option value="0.3">Экономный</option>
-            <option value="0.6" selected>Стандарт</option>
-            <option value="0.85">Высокое</option>
+            <option value="30">Экономный</option>
+            <option value="23" selected>Стандарт</option>
+            <option value="18">Высокое</option>
           </select>
         </div>
       </div>
@@ -678,7 +728,7 @@ footer a:hover { text-decoration: underline; }
 
 <!-- PERKS -->
 <div class="perks">
-  <div class="perk"><span class="perk-icon">🧠</span> Без FFmpeg — мгновенная загрузка</div>
+  <div class="perk"><span class="perk-icon">🎬</span> Выдаёт настоящий MP4</div>
   <div class="perk"><span class="perk-icon">🔐</span> Данные не покидают браузер</div>
   <div class="perk"><span class="perk-icon">📲</span> Работает на телефоне</div>
   <div class="perk"><span class="perk-icon">🆓</span> Полностью бесплатно</div>
@@ -716,10 +766,13 @@ footer a:hover { text-decoration: underline; }
 <div class="toast" id="toast"></div>
 
 <script>
-// ─── STATE ──────────────────────────────────────────────────────────────────
+const { FFmpeg } = FFmpegWASM;
+const { fetchFile, toBlobURL } = FFmpegUtil;
+
+const ffmpeg = new FFmpeg();
+let ffmpegReady = false;
 let selectedFile = null;
 let outputUrl = null;
-let mediaRecorder = null;
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────
 const dropZone    = document.getElementById('dropZone');
@@ -743,6 +796,23 @@ const vidDuration = document.getElementById('vidDuration');
 const progressFill   = document.getElementById('progressFill');
 const progressPct    = document.getElementById('progressPct');
 const progressStatus = document.getElementById('progressStatus');
+const overlay     = document.getElementById('ffmpegOverlay');
+
+// ─── LOAD FFMPEG ─────────────────────────────────────────────────────────────
+async function loadFFmpeg() {
+  try {
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    });
+    ffmpegReady = true;
+    overlay.classList.add('hidden');
+  } catch(e) {
+    overlay.innerHTML = '<div style="color:#fca5a5;font-family:DM Mono,monospace;font-size:12px;text-align:center;padding:32px;line-height:1.8">❌ Ошибка загрузки конвертера<br><span style="opacity:0.5">Обнови страницу и попробуй снова</span></div>';
+  }
+}
+loadFFmpeg();
 
 // ─── UPLOAD ──────────────────────────────────────────────────────────────────
 dropZone.addEventListener('click', () => fileInput.click());
@@ -780,7 +850,6 @@ function handleFile(file) {
   downloadSection.classList.remove('visible');
   progressSection.classList.remove('visible');
 
-  // Show duration
   vidOrig.onloadedmetadata = () => {
     const d = Math.round(vidOrig.duration);
     vidDuration.textContent = `${d} сек`;
@@ -794,125 +863,61 @@ function formatBytes(b) {
 
 // ─── CONVERT ─────────────────────────────────────────────────────────────────
 btnConvert.addEventListener('click', () => {
-  if (!selectedFile) return;
+  if (!selectedFile || !ffmpegReady) return;
   convertVideo();
 });
 
 async function convertVideo() {
-  const size     = parseInt(document.getElementById('sizeSelect').value);
-  const maxSec   = parseInt(document.getElementById('durationSelect').value);
-  const quality  = parseFloat(document.getElementById('qualitySelect').value);
+  const size    = document.getElementById('sizeSelect').value;
+  const maxSec  = document.getElementById('durationSelect').value;
+  const quality = document.getElementById('qualitySelect').value;
 
   btnConvert.disabled = true;
   progressSection.classList.add('visible');
   downloadSection.classList.remove('visible');
-  setProgress(5, 'Подготовка...');
+  setProgress(5, 'Загружаем файл...');
 
   try {
-    // Create video element for source
-    const video = document.createElement('video');
-    video.src = URL.createObjectURL(selectedFile);
-    video.muted = true;
-    video.playsInline = true;
+    // Write input
+    await ffmpeg.writeFile('input.mp4', await fetchFile(selectedFile));
+    setProgress(20, 'Обрезаем в квадрат...');
 
-    await new Promise((res, rej) => {
-      video.onloadedmetadata = res;
-      video.onerror = rej;
+    // FFmpeg progress
+    ffmpeg.on('progress', ({ progress }) => {
+      const pct = Math.round(25 + progress * 65);
+      setProgress(pct, `Конвертация ${Math.round(progress * 100)}%...`);
     });
 
-    const totalDuration = maxSec > 0 ? Math.min(video.duration, maxSec) : video.duration;
+    // Build args
+    const args = ['-i', 'input.mp4'];
+    if (maxSec !== '0') args.push('-t', maxSec);
+    args.push(
+      '-vf', `crop=min(iw\\,ih):min(iw\\,ih),scale=${size}:${size}`,
+      '-c:v', 'libx264',
+      '-crf', quality,
+      '-preset', 'fast',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-movflags', '+faststart',
+      '-pix_fmt', 'yuv420p',
+      'output.mp4'
+    );
 
-    setProgress(15, 'Настраиваем canvas...');
-
-    // Setup canvas
-    const canvas = document.createElement('canvas');
-    canvas.width  = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // Circular clip
-    function drawFrame() {
-      const vw = video.videoWidth;
-      const vh = video.videoHeight;
-      const side = Math.min(vw, vh);
-      const sx = (vw - side) / 2;
-      const sy = (vh - side) / 2;
-
-      ctx.clearRect(0, 0, size, size);
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(video, sx, sy, side, side, 0, 0, size, size);
-      ctx.restore();
-    }
-
-    setProgress(25, 'Начинаем запись...');
-
-    // MediaRecorder
-    const stream = canvas.captureStream(30);
-
-    // Pick best mime
-    const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
-      .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
-
-    const chunks = [];
-    mediaRecorder = new MediaRecorder(stream, {
-      mimeType,
-      videoBitsPerSecond: quality * 2_500_000
-    });
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-
-    const recordingDone = new Promise(res => { mediaRecorder.onstop = res; });
-
-    mediaRecorder.start(100);
-    video.currentTime = 0;
-
-    setProgress(30, 'Рендерим кадры...');
-
-    await new Promise((res, rej) => {
-      video.onplay = null;
-      video.play().catch(rej);
-
-      let animFrame;
-
-      function loop() {
-        if (video.ended || video.currentTime >= totalDuration) {
-          cancelAnimationFrame(animFrame);
-          video.pause();
-          mediaRecorder.stop();
-          res();
-          return;
-        }
-        drawFrame();
-        const p = 30 + Math.round((video.currentTime / totalDuration) * 60);
-        setProgress(p, `Рендерим: ${Math.round(video.currentTime)}с / ${Math.round(totalDuration)}с`);
-        animFrame = requestAnimationFrame(loop);
-      }
-
-      video.onended = () => {
-        cancelAnimationFrame(animFrame);
-        mediaRecorder.stop();
-        res();
-      };
-
-      loop();
-    });
-
-    await recordingDone;
+    await ffmpeg.exec(args);
     setProgress(95, 'Финализируем...');
 
+    const data = await ffmpeg.readFile('output.mp4');
     if (outputUrl) URL.revokeObjectURL(outputUrl);
-    const blob = new Blob(chunks, { type: mimeType });
+    const blob = new Blob([data.buffer], { type: 'video/mp4' });
     outputUrl = URL.createObjectURL(blob);
 
-    // Ext
-    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
     btnDownload.href = outputUrl;
-    btnDownload.download = `circle.${ext}`;
-
-    // Update circle preview
+    btnDownload.download = 'circle.mp4';
     vidCircle.src = outputUrl;
+
+    // Cleanup
+    await ffmpeg.deleteFile('input.mp4');
+    await ffmpeg.deleteFile('output.mp4');
 
     setProgress(100, '✅ Готово!');
     setTimeout(() => {
@@ -923,7 +928,7 @@ async function convertVideo() {
   } catch(e) {
     console.error(e);
     setProgress(0, '❌ Ошибка: ' + e.message);
-    showToast('❌ Ошибка конвертации: ' + e.message);
+    showToast('❌ Ошибка: ' + e.message);
   }
 
   btnConvert.disabled = false;
