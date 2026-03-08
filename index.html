@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Circle.AI — конвертер кружков</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js" crossorigin="anonymous"></script>
+<script src="ffmpeg.js" crossorigin="anonymous"></script>
 
 <style>
 :root {
@@ -792,7 +791,7 @@ footer a:hover { text-decoration: underline; }
 
 <script>
 const { FFmpeg } = FFmpegWASM;
-const { fetchFile, toBlobURL } = FFmpegUtil;
+const { fetchFile } = FFmpegUtil;
 const ffmpeg = new FFmpeg();
 let ffmpegReady = false;
 let selectedFile = null;
@@ -802,10 +801,9 @@ const overlay = document.getElementById('ffmpegOverlay');
 
 async function loadFFmpeg() {
   try {
-    const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
     await ffmpeg.load({
-      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+      coreURL: '/ffmpeg-core.js',
+      wasmURL: '/ffmpeg-core.wasm',
     });
     ffmpegReady = true;
     overlay.classList.add('hidden');
