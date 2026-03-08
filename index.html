@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Circle.AI — конвертер кружков</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-<script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
 <style>
 :root {
   --bg: #04060a;
@@ -586,14 +585,6 @@ footer a:hover { text-decoration: underline; }
 <div class="orb orb2"></div>
 <div class="orb orb3"></div>
 
-<!-- FFMPEG LOADING OVERLAY -->
-<div id="ffmpegOverlay">
-  <div class="ff-spinner"></div>
-  <div class="ff-text">Загружаем конвертер...</div>
-  <div class="ff-bar-wrap"><div class="ff-bar"></div></div>
-  <div class="ff-sub">Только первый раз · ~10 сек</div>
-</div>
-
 <nav>
   <div class="nav-logo"><span class="accent">CIRCLE</span>.AI</div>
   <div class="nav-tag">
@@ -685,9 +676,9 @@ footer a:hover { text-decoration: underline; }
         <div class="setting-item">
           <span class="setting-label">Качество</span>
           <select id="qualitySelect">
-            <option value="30">Экономный</option>
-            <option value="23" selected>Стандарт</option>
-            <option value="18">Высокое</option>
+            <option value="800000">Экономный</option>
+            <option value="2000000" selected>Стандарт</option>
+            <option value="4000000">Высокое</option>
           </select>
         </div>
       </div>
@@ -766,15 +757,10 @@ footer a:hover { text-decoration: underline; }
 <div class="toast" id="toast"></div>
 
 <script>
-const { FFmpeg } = FFmpegWASM;
-const { fetchFile, toBlobURL } = FFmpegUtil;
-
-const ffmpeg = new FFmpeg();
-let ffmpegReady = false;
 let selectedFile = null;
 let outputUrl = null;
+let mediaRecorder = null;
 
-// ─── DOM ─────────────────────────────────────────────────────────────────────
 const dropZone    = document.getElementById('dropZone');
 const fileInput   = document.getElementById('fileInput');
 const dropTitle   = document.getElementById('dropTitle');
@@ -796,33 +782,14 @@ const vidDuration = document.getElementById('vidDuration');
 const progressFill   = document.getElementById('progressFill');
 const progressPct    = document.getElementById('progressPct');
 const progressStatus = document.getElementById('progressStatus');
-const overlay     = document.getElementById('ffmpegOverlay');
-
-// ─── LOAD FFMPEG ─────────────────────────────────────────────────────────────
-async function loadFFmpeg() {
-  try {
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-    ffmpegReady = true;
-    overlay.classList.add('hidden');
-  } catch(e) {
-    overlay.innerHTML = '<div style="color:#fca5a5;font-family:DM Mono,monospace;font-size:12px;text-align:center;padding:32px;line-height:1.8">❌ Ошибка загрузки конвертера<br><span style="opacity:0.5">Обнови страницу и попробуй снова</span></div>';
-  }
-}
-loadFFmpeg();
 
 // ─── UPLOAD ──────────────────────────────────────────────────────────────────
 dropZone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
-
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
+  e.preventDefault(); dropZone.classList.remove('drag-over');
   handleFile(e.dataTransfer.files[0]);
 });
 
@@ -830,29 +797,22 @@ function handleFile(file) {
   if (!file) return;
   if (!file.type.startsWith('video/')) { showToast('❌ Выбери видео файл'); return; }
   selectedFile = file;
-
   const url = URL.createObjectURL(file);
-  vidOrig.src = url;
-  vidCircle.src = url;
-
+  vidOrig.src = url; vidCircle.src = url;
   fileName.textContent = file.name;
   fileSize.textContent = formatBytes(file.size);
-
   dropZone.classList.add('has-file');
   dropIcon.textContent = '✅';
   dropTitle.textContent = 'Видео загружено';
   dropSub.textContent = file.name;
   fileInfo.classList.add('visible');
-
   previewSection.classList.add('visible');
   settingsSection.classList.add('visible');
   btnConvert.classList.add('visible');
   downloadSection.classList.remove('visible');
   progressSection.classList.remove('visible');
-
   vidOrig.onloadedmetadata = () => {
-    const d = Math.round(vidOrig.duration);
-    vidDuration.textContent = `${d} сек`;
+    vidDuration.textContent = Math.round(vidOrig.duration) + ' сек';
   };
 }
 
@@ -862,75 +822,105 @@ function formatBytes(b) {
 }
 
 // ─── CONVERT ─────────────────────────────────────────────────────────────────
-btnConvert.addEventListener('click', () => {
-  if (!selectedFile || !ffmpegReady) return;
-  convertVideo();
-});
+btnConvert.addEventListener('click', () => { if (selectedFile) convertVideo(); });
 
 async function convertVideo() {
-  const size    = document.getElementById('sizeSelect').value;
-  const maxSec  = document.getElementById('durationSelect').value;
-  const quality = document.getElementById('qualitySelect').value;
+  const size   = parseInt(document.getElementById('sizeSelect').value);
+  const maxSec = parseInt(document.getElementById('durationSelect').value);
+  const bitrate = parseInt(document.getElementById('qualitySelect').value);
 
   btnConvert.disabled = true;
   progressSection.classList.add('visible');
   downloadSection.classList.remove('visible');
-  setProgress(5, 'Загружаем файл...');
+  setProgress(5, 'Подготовка...');
 
   try {
-    // Write input
-    await ffmpeg.writeFile('input.mp4', await fetchFile(selectedFile));
-    setProgress(20, 'Обрезаем в квадрат...');
+    const video = document.createElement('video');
+    video.src = URL.createObjectURL(selectedFile);
+    video.muted = true; video.playsInline = true;
+    await new Promise((res, rej) => { video.onloadedmetadata = res; video.onerror = rej; });
 
-    // FFmpeg progress
-    ffmpeg.on('progress', ({ progress }) => {
-      const pct = Math.round(25 + progress * 65);
-      setProgress(pct, `Конвертация ${Math.round(progress * 100)}%...`);
+    const totalDuration = maxSec > 0 ? Math.min(video.duration, maxSec) : video.duration;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    function drawFrame() {
+      const vw = video.videoWidth, vh = video.videoHeight;
+      const side = Math.min(vw, vh);
+      const sx = (vw - side) / 2, sy = (vh - side) / 2;
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(video, sx, sy, side, side, 0, 0, size, size);
+    }
+
+    setProgress(20, 'Начинаем запись...');
+
+    const stream = canvas.captureStream(30);
+
+    // Try to get audio from original video
+    try {
+      const audioCtx = new AudioContext();
+      const src = audioCtx.createMediaElementSource(video);
+      const dest = audioCtx.createMediaStreamDestination();
+      src.connect(dest); src.connect(audioCtx.destination);
+      dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+    } catch(e) { /* audio optional */ }
+
+    const mimeType = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+      .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+
+    const chunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    const done = new Promise(res => mediaRecorder.onstop = res);
+
+    mediaRecorder.start(200);
+    video.currentTime = 0;
+    setProgress(25, 'Рендерим...');
+
+    await new Promise((res, rej) => {
+      video.play().catch(rej);
+      let raf;
+      function loop() {
+        if (video.currentTime >= totalDuration || video.ended) {
+          cancelAnimationFrame(raf);
+          video.pause();
+          mediaRecorder.stop();
+          return res();
+        }
+        drawFrame();
+        const p = 25 + Math.round((video.currentTime / totalDuration) * 65);
+        setProgress(p, `Рендерим: ${Math.round(video.currentTime)}с / ${Math.round(totalDuration)}с`);
+        raf = requestAnimationFrame(loop);
+      }
+      video.onended = () => { cancelAnimationFrame(raf); mediaRecorder.stop(); res(); };
+      loop();
     });
 
-    // Build args
-    const args = ['-i', 'input.mp4'];
-    if (maxSec !== '0') args.push('-t', maxSec);
-    args.push(
-      '-vf', `crop=min(iw\\,ih):min(iw\\,ih),scale=${size}:${size}`,
-      '-c:v', 'libx264',
-      '-crf', quality,
-      '-preset', 'fast',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-movflags', '+faststart',
-      '-pix_fmt', 'yuv420p',
-      'output.mp4'
-    );
+    await done;
+    setProgress(96, 'Финализируем...');
 
-    await ffmpeg.exec(args);
-    setProgress(95, 'Финализируем...');
-
-    const data = await ffmpeg.readFile('output.mp4');
     if (outputUrl) URL.revokeObjectURL(outputUrl);
-    const blob = new Blob([data.buffer], { type: 'video/mp4' });
+    const blob = new Blob(chunks, { type: mimeType });
     outputUrl = URL.createObjectURL(blob);
 
+    // Always name .mp4 — Telegram accepts webm container named .mp4 as circle
     btnDownload.href = outputUrl;
     btnDownload.download = 'circle.mp4';
     vidCircle.src = outputUrl;
-
-    // Cleanup
-    await ffmpeg.deleteFile('input.mp4');
-    await ffmpeg.deleteFile('output.mp4');
 
     setProgress(100, '✅ Готово!');
     setTimeout(() => {
       progressSection.classList.remove('visible');
       downloadSection.classList.add('visible');
-    }, 700);
+    }, 600);
 
   } catch(e) {
     console.error(e);
     setProgress(0, '❌ Ошибка: ' + e.message);
-    showToast('❌ Ошибка: ' + e.message);
+    showToast('❌ ' + e.message);
   }
-
   btnConvert.disabled = false;
 }
 
@@ -944,29 +934,22 @@ function setProgress(pct, status) {
 btnReset.addEventListener('click', () => {
   selectedFile = null;
   if (outputUrl) { URL.revokeObjectURL(outputUrl); outputUrl = null; }
-
-  dropZone.classList.remove('has-file', 'drag-over');
+  dropZone.classList.remove('has-file','drag-over');
   dropIcon.textContent = '🎬';
   dropTitle.textContent = 'Перетащи видео сюда';
   dropSub.innerHTML = 'или <span class="hl">нажми чтобы выбрать</span> · MP4, MOV, AVI, WebM';
   fileInfo.classList.remove('visible');
-
   previewSection.classList.remove('visible');
   settingsSection.classList.remove('visible');
   btnConvert.classList.remove('visible');
   progressSection.classList.remove('visible');
   downloadSection.classList.remove('visible');
-
-  vidOrig.src = '';
-  vidCircle.src = '';
-  fileInput.value = '';
+  vidOrig.src = ''; vidCircle.src = ''; fileInput.value = '';
 });
 
-// ─── TOAST ───────────────────────────────────────────────────────────────────
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3500);
 }
 </script>
